@@ -44,8 +44,11 @@ def build_prompt(context: dict[str, Any]) -> str:
     """Create a grounded JSON-only Gemini prompt from structured report evidence."""
     schema = {key: [{"text": "string", "classification": list(CLASSIFICATIONS),
                      "evidence_ids": ["one or more supplied evidence IDs"]}] for key in SECTIONS}
-    formulas = context.get("phase1", {}).get("metadata", {}).get("feature_formulas", {})
-    profit_assumption = formulas.get("profit", {}).get("assumption", "") if isinstance(formulas, dict) else ""
+    phase1 = context.get("phase1") or {}
+    metadata = phase1.get("metadata") or {}
+    formulas = metadata.get("feature_formulas") or {}
+    profit_data = formulas.get("profit") if isinstance(formulas, dict) else None
+    profit_assumption = (profit_data or {}).get("assumption", "") if isinstance(profit_data, dict) else ""
     synthetic_profit_instruction = (
         " The profit and margin values use synthetic estimated COGS, not actual accounting data. Label every such value as an illustrative estimate; do not present it as actual profit or use it to claim realized profitability."
         if "SYNTHETIC ESTIMATE" in str(profit_assumption) else ""

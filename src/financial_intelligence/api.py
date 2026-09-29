@@ -5,15 +5,20 @@ import json
 import logging
 import os
 import re
+import time
+import threading
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
+import jwt
+from jwt import PyJWKClient
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "output"
@@ -31,16 +36,69 @@ REPORTS = {
 
 app = FastAPI(title="FINOP API", version="1.0.0", description="API adapter for the existing FINOP Phases 1–7.")
 logger = logging.getLogger(__name__)
+dataset_import_lock = threading.Lock()
+MAX_DATASET_BYTES = 50 * 1024 * 1024
+FIREBASE_JWKS = PyJWKClient("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
+FIREBASE_DEFAULTS = {
+    "apiKey": "AIzaSyDuchr8Ad_PZeiymG69o6PrpIxwqsIjRzw",
+    "authDomain": "finops-10a45.firebaseapp.com",
+    "projectId": "finops-10a45",
+    "appId": "1:423244544710:web:3018ec0e6148372d55b5c7",
+}
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("FINOP_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
                    allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
 
 
 def authorized(authorization: str | None = Header(default=None)) -> str:
-    """Authentication-ready bearer-token gate; set FINOP_API_TOKEN outside local development."""
+    """Verify Firebase ID tokens when configured; keep the legacy local/demo token fallback."""
     expected = os.getenv("FINOP_API_TOKEN")
-    if expected and authorization != f"Bearer {expected}":
+    project_id = os.getenv("FINOP_FIREBASE_PROJECT_ID", FIREBASE_DEFAULTS.get("projectId"))
+
+    if expected:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        token = authorization.removeprefix("Bearer ").strip()
+        if token == expected:
+            return "authenticated-user"
+        if project_id:
+            try:
+                signing_key = FIREBASE_JWKS.get_signing_key_from_jwt(token).key
+                claims = jwt.decode(token, signing_key, algorithms=["RS256"], audience=project_id,
+                                    issuer=f"https://securetoken.google.com/{project_id}")
+                if not claims.get("sub") or claims.get("firebase", {}).get("sign_in_provider") in {"custom", "anonymous"}:
+                    raise jwt.InvalidTokenError("Unsupported Firebase identity")
+                return str(claims["sub"])
+            except (jwt.PyJWTError, Exception):
+                pass
         raise HTTPException(status_code=401, detail="Authentication required")
-    return "authenticated-user" if expected else "local-development-user"
+
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+        if project_id:
+            try:
+                signing_key = FIREBASE_JWKS.get_signing_key_from_jwt(token).key
+                claims = jwt.decode(token, signing_key, algorithms=["RS256"], audience=project_id,
+                                    issuer=f"https://securetoken.google.com/{project_id}")
+                if not claims.get("sub") or claims.get("firebase", {}).get("sign_in_provider") in {"custom", "anonymous"}:
+                    raise jwt.InvalidTokenError("Unsupported Firebase identity")
+                return str(claims["sub"])
+            except (jwt.PyJWTError, Exception):
+                pass
+        return "authenticated-user"
+
+    return "local-development-user"
+
+
+@app.get("/api/auth/config")
+def firebase_auth_config() -> dict[str, Any]:
+    """Return Firebase's public web app settings; provider secrets stay in Firebase Console."""
+    config = {
+        "apiKey": os.getenv("FINOP_FIREBASE_API_KEY", FIREBASE_DEFAULTS["apiKey"]),
+        "authDomain": os.getenv("FINOP_FIREBASE_AUTH_DOMAIN", FIREBASE_DEFAULTS["authDomain"]),
+        "projectId": os.getenv("FINOP_FIREBASE_PROJECT_ID", FIREBASE_DEFAULTS["projectId"]),
+        "appId": os.getenv("FINOP_FIREBASE_APP_ID", FIREBASE_DEFAULTS["appId"]),
+    }
+    return {"enabled": all(config.values()), **config}
 
 
 def read_report(name: str, default: Any = None) -> Any:
@@ -98,6 +156,19 @@ def health() -> dict[str, Any]:
     return {"status": "ok", "phases": [1, 2, 3, 4, 5, 6, 7], "available_reports": [k for k in REPORTS if (OUTPUT / REPORTS[k]).is_file()]}
 
 
+@app.get("/api/ready")
+def readiness() -> dict[str, Any]:
+    """Container readiness probe; checks writable persistent report storage."""
+    try:
+        OUTPUT.mkdir(parents=True, exist_ok=True)
+        probe = OUTPUT / f".ready-{os.getpid()}-{time.time_ns()}"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError:
+        raise HTTPException(status_code=503, detail="Report storage is not writable.") from None
+    return {"status": "ready"}
+
+
 @app.get("/api/dashboard")
 def dashboard(_: str = Depends(authorized)) -> dict[str, Any]:
     financial = read_report("financial", {})
@@ -108,10 +179,56 @@ def dashboard(_: str = Depends(authorized)) -> dict[str, Any]:
     monthly = financial.get("trend_analysis", {}).get("monthly", [])
     risk = financial.get("risk_analysis", {})
     return {"financial_summary": financial.get("financial_summary", {}), "kpis": financial.get("kpis", {}),
+            "dataset_metadata": financial.get("metadata", {}),
             "risk": risk, "monthly_trends": monthly, "latest_root_cause": root_cause.get("significant_changes", [])[:5],
             "forecast_summary": forecast.get("forecasts", []), "attention_items": analyst.get("attention_items", []),
             "recent_alerts": [a for a in proposals.get("actions", []) if a.get("type") == "financial_alert" or a.get("priority") in {"HIGH", "CRITICAL"}][:8],
-            "data_status": {"phase1": bool(financial), "phase2": bool(root_cause), "phase3": bool(forecast)}}
+            "data_status": {"phase1": bool(financial), "phase2": bool(root_cause), "phase3": bool(forecast),
+                            "dataset_loaded": bool(financial),
+                            "message": None if financial else "Upload a sales CSV to generate the financial dashboard."}}
+
+
+def _import_dataset(destination: Path, contents: bytes) -> dict[str, Any]:
+    """Persist a CSV and regenerate the dashboard's deterministic reports."""
+    if not dataset_import_lock.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="A dataset import is already running. Please try again shortly.")
+    try:
+        OUTPUT.mkdir(parents=True, exist_ok=True)
+        staged = OUTPUT / ".dataset-upload.csv.tmp"
+        staged.write_bytes(contents)
+        staged.replace(destination)
+        from .pipeline import FinancialIntelligencePipeline
+        from .root_cause import RootCauseInvestigator
+        from .forecasting import FinancialForecaster
+        phase1 = FinancialIntelligencePipeline(destination, OUTPUT).run()
+        phase2 = RootCauseInvestigator(destination, output_dir=OUTPUT).run()
+        phase3 = FinancialForecaster(destination, output_dir=OUTPUT).run()
+        return {"status": "processed", "records_analyzed": phase1["metadata"]["records_analyzed"],
+                "significant_changes": phase2.get("significant_change_count", 0),
+                "forecasts": len(phase3.get("forecasts", []))}
+    finally:
+        dataset_import_lock.release()
+
+
+@app.post("/api/datasets/import")
+async def import_dataset(file: UploadFile = File(...), _: str = Depends(authorized)) -> dict[str, Any]:
+    """Import a sales CSV into persistent report storage and run Phases 1–3."""
+    if not file.filename or Path(file.filename).suffix.lower() != ".csv":
+        raise HTTPException(status_code=400, detail="Choose a .csv sales data file.")
+    contents = await file.read(MAX_DATASET_BYTES + 1)
+    await file.close()
+    if not contents:
+        raise HTTPException(status_code=400, detail="The selected CSV file is empty.")
+    if len(contents) > MAX_DATASET_BYTES:
+        raise HTTPException(status_code=413, detail="CSV files must be 50 MB or smaller.")
+    try:
+        result = await run_in_threadpool(_import_dataset, OUTPUT / "source_dataset.csv", contents)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Dataset import failed (exception_type=%s)", type(exc).__name__)
+        raise HTTPException(status_code=422, detail=f"Could not process this dataset ({type(exc).__name__}). Check the CSV columns and try again.") from None
+    return result
 
 
 @app.get("/api/financial-intelligence")

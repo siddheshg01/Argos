@@ -17,7 +17,7 @@ def build_report(schema: dict, quality: dict, cleaning: dict, kpis: dict, segmen
                  trends: dict | None, concentration: dict, risk: dict, records: int,
                  formulas: dict | None = None, inspection: dict | None = None) -> dict:
     """Combine pipeline outputs under stable keys for downstream consumers."""
-    report = {"metadata": {"dataset": "Amazon Sales & Trading Insights Dataset 2024",
+    report = {"metadata": {"dataset": (inspection or {}).get("dataset_name", "Financial sales dataset"),
                            "phase": "Phase 1 - Financial Intelligence Engine", "records_analyzed": records,
                            "schema_mapping": schema["mapping"], "unavailable_fields": schema["unavailable"],
                            "feature_formulas": formulas or {}, "dataset_inspection": inspection or {}},

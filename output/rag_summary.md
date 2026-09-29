@@ -1,8 +1,8 @@
 # Financial Policy Intelligence
 
-**Query:** how to increase profits
+**Query:** What policy or procedure is relevant to the current financial findings?
 
-**Status:** error
+**Status:** no_relevant_documents
 **Confidence:** low
 
 ## Answer
@@ -15,4 +15,4 @@ No relevant policy documents were retrieved.
 
 ## Limitations
 
-- Gemini embedding network error: ConnectionRefusedError
+- GEMINI_API_KEY is not configured. Add it to .env to enable semantic document retrieval.

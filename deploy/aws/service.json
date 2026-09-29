@@ -1,0 +1,28 @@
+{
+  "cluster": "REPLACE_WITH_ECS_CLUSTER_ARN",
+  "serviceName": "finop-api",
+  "taskDefinition": "finop-api",
+  "desiredCount": 1,
+  "launchType": "FARGATE",
+  "platformVersion": "LATEST",
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100,
+    "deploymentCircuitBreaker": { "enable": true, "rollback": true }
+  },
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": ["REPLACE_WITH_PRIVATE_SUBNET_A", "REPLACE_WITH_PRIVATE_SUBNET_B"],
+      "securityGroups": ["REPLACE_WITH_TASK_SECURITY_GROUP_ID"],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "loadBalancers": [{
+    "targetGroupArn": "REPLACE_WITH_ALB_TARGET_GROUP_ARN",
+    "containerName": "finop-api",
+    "containerPort": 8000
+  }],
+  "healthCheckGracePeriodSeconds": 90,
+  "enableECSManagedTags": true,
+  "propagateTags": "SERVICE"
+}

@@ -16,3 +16,10 @@ output/charts/*.png
 .pytest-tmp/
 .test-tmp-agent-cli/
 pytest-cache-files-*/
+deploy/cdk/node_modules/
+deploy/cdk/cdk.out/
+deploy/cdk/cdk.context.json
+deploy/cdk/.build/
+powershell.cmd
+web/powershell.cmd
+deploy/cdk/powershell.cmd

@@ -15,6 +15,9 @@ def load_dataset(file_path: str | Path) -> pd.DataFrame:
     frame = pd.read_csv(path)
     frame.attrs["inspection"] = {
         "shape": [int(x) for x in frame.shape],
+        "dataset_name": path.stem.replace("_", " ").title(),
+        **({"source": "https://www.kaggle.com/datasets/bibirehana/sample-superstore", "license": "CC0"}
+           if path.name == "sample_superstore.csv" else {}),
         "columns": list(frame.columns),
         "dtypes": {str(k): str(v) for k, v in frame.dtypes.items()},
         "missing_values": {str(k): int(v) for k, v in frame.isna().sum().items()},
