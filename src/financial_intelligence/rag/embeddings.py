@@ -12,8 +12,10 @@ class GeminiEmbedder:
     """Call the Gemini embedding endpoint; no API key is stored in this object."""
     def __init__(self, api_key: str | None = None, model: str = "gemini-embedding-001",
                  timeout: float = 30, output_dimension: int = 768):
-        load_local_env()
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY")
+        key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY")
+        if key and (key in {"YOUR_GEMINI_API_KEY_HERE", "replace-me", "your-api-key"} or key.startswith("YOUR_")):
+            key = None
+        self.api_key = key
         self.model, self.timeout, self.output_dimension = model, timeout, output_dimension
 
     def embed(self, text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:

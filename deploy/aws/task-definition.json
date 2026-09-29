@@ -1,0 +1,42 @@
+{
+  "family": "finop-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "3072",
+  "executionRoleArn": "REPLACE_WITH_ECS_TASK_EXECUTION_ROLE_ARN",
+  "taskRoleArn": "REPLACE_WITH_FINOP_TASK_ROLE_ARN",
+  "containerDefinitions": [
+    {
+      "name": "finop-api",
+      "image": "REPLACE_WITH_ECR_IMAGE_URI",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "PORT", "value": "8000" },
+        { "name": "FINOP_CORS_ORIGINS", "value": "REPLACE_WITH_HTTPS_DASHBOARD_ORIGIN" }
+      ],
+      "secrets": [
+        { "name": "FINOP_API_TOKEN", "valueFrom": "REPLACE_WITH_SECRETS_MANAGER_SECRET_ARN:FINOP_API_TOKEN::" },
+        { "name": "GEMINI_API_KEY", "valueFrom": "REPLACE_WITH_SECRETS_MANAGER_SECRET_ARN:GEMINI_API_KEY::" }
+      ],
+      "mountPoints": [{ "sourceVolume": "finop-data", "containerPath": "/app/output", "readOnly": false }],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready',timeout=3)\" || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/finop-api",
+          "awslogs-region": "REPLACE_WITH_AWS_REGION",
+          "awslogs-stream-prefix": "api"
+        }
+      }
+    }
+  ],
+  "volumes": [{ "name": "finop-data", "efsVolumeConfiguration": { "fileSystemId": "REPLACE_WITH_EFS_ID", "transitEncryption": "ENABLED", "authorizationConfig": { "iam": "ENABLED", "accessPointId": "REPLACE_WITH_EFS_ACCESS_POINT_ID" } } }]
+}

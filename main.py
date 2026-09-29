@@ -33,10 +33,12 @@ def main() -> None:
     print("AGENTIC AI FINANCIAL OPERATIONS PLATFORM")
     print("PHASE 1 - FINANCIAL INTELLIGENCE ENGINE")
     print("=" * 58)
-    dataset_path = Path("data/raw/amazon_sales_2024.csv")
-    # Accept the filename the user uploaded while preserving the documented default.
-    if not dataset_path.exists() and Path("data/raw/Amazon.csv").exists():
-        dataset_path = Path("data/raw/Amazon.csv")
+    dataset_path = Path("data/sample_superstore.csv")
+    # Accept user-uploaded files in data/raw/ if present.
+    for candidate in ("data/raw/amazon_sales_2024.csv", "data/raw/Amazon.csv"):
+        if Path(candidate).exists():
+            dataset_path = Path(candidate)
+            break
     report = FinancialIntelligencePipeline(dataset_path).run()
     print(f"\nRecords analyzed: {report['metadata']['records_analyzed']:,}")
     print(f"Data quality score: {report['data_quality']['data_quality_score']:.1f}")
@@ -68,8 +70,7 @@ def main() -> None:
     print(f"Analysis generated: {'YES' if phase4.get('status') == 'generated' else 'NO'}")
     print(f"JSON: {'YES' if Path('output/llm_financial_analysis.json').is_file() else 'NO'}")
     print(f"Markdown: {'YES' if Path('output/llm_financial_analysis.md').is_file() else 'NO'}")
-    print("Tests: run python -m pytest -q")
-    print(f"PHASE 4 STATUS: {'COMPLETE' if phase4.get('status') == 'generated' else 'NEEDS FIXES'}")
+    print(f"PHASE 4 STATUS: {'COMPLETE' if phase4.get('status') == 'generated' else 'READY (set GEMINI_API_KEY in .env)' if phase4.get('status') == 'unavailable' else 'NEEDS FIXES'}")
     phase5 = RAGPipeline().run(financial_analysis=phase4)
     print("\nPHASE 5 - RAG / FINANCIAL POLICY INTELLIGENCE")
     print(f"Documents indexed: {phase5['documents_indexed']}")

@@ -149,6 +149,8 @@ class LLMFinancialAnalyst:
             p1, p2, p3 = [json.loads(p.read_text(encoding="utf-8")) for p in paths]
             context = build_analysis_context(p1, p2, p3)
             key = os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY")
+            if key and (key in {"YOUR_GEMINI_API_KEY_HERE", "replace-me", "your-api-key"} or key.startswith("YOUR_")):
+                key = None
             if not key:
                 report["error"] = "GEMINI_API_KEY is not configured. Add it to .env to enable Gemini analysis."
                 profit_assumption = p1.get("metadata", {}).get("feature_formulas", {}).get("profit", {}).get("assumption", "")

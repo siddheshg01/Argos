@@ -72,29 +72,34 @@ class RAGPipeline:
                 report["retrieval_status"] = "no_documents"
             else:
                 embedder = GeminiEmbedder()
-                existing = store.get_existing_embeddings([c.id for c in chunks])
-                missing = [chunk for chunk in chunks if chunk.id not in existing]
-                new_vectors = embedder.embed_many([c.text for c in missing], "RETRIEVAL_DOCUMENT")
-                existing.update({chunk.id: vector for chunk, vector in zip(missing, new_vectors)})
-                vectors = [existing[chunk.id] for chunk in chunks]
-                store.replace_all(chunks, vectors)
-                retriever = PolicyRetriever(store, embedder, threshold)
-                retrieved = retriever.retrieve(query, top_k=int(os.getenv("RAG_TOP_K", "5")))
-                report["retrieval_status"] = "complete"
-                report["retrieved_documents"] = retrieved
-                report["relevance_scores"] = [{"chunk_id": item["id"], "score": item["score"]} for item in retrieved]
-                report["context"] = "\n\n".join(
-                    f"[{item['id']}] {item['metadata'].get('source')} | section={item['metadata'].get('section')} | page={item['metadata'].get('page', 'n/a')}\n{item['text']}"
-                    for item in retrieved)
-                report["source_citations"] = [{"chunk_id": item["id"], "source": item["metadata"].get("source", "unknown"),
-                    "document_id": item["metadata"].get("document_id"), "section": item["metadata"].get("section"),
-                    "page": item["metadata"].get("page"), "relevance_score": item["score"]} for item in retrieved]
-                analysis = PolicyAnalyst().analyze(query, retrieved, financial_analysis)
-                report.update({"answer": analysis["answer"], "confidence": analysis["confidence"],
-                               "limitations": extraction_warnings + analysis["limitations"], "status": analysis["status"],
-                               "claims": analysis["claims"]})
-                if not retrieved:
-                    report["limitations"] = analysis["limitations"]
+                if not embedder.api_key:
+                    report["limitations"] = ["GEMINI_API_KEY is not configured. Add it to .env to enable semantic document retrieval."]
+                    report["retrieval_status"] = "no_api_key"
+                    report["status"] = "no_relevant_documents"
+                else:
+                    existing = store.get_existing_embeddings([c.id for c in chunks])
+                    missing = [chunk for chunk in chunks if chunk.id not in existing]
+                    new_vectors = embedder.embed_many([c.text for c in missing], "RETRIEVAL_DOCUMENT")
+                    existing.update({chunk.id: vector for chunk, vector in zip(missing, new_vectors)})
+                    vectors = [existing[chunk.id] for chunk in chunks]
+                    store.replace_all(chunks, vectors)
+                    retriever = PolicyRetriever(store, embedder, threshold)
+                    retrieved = retriever.retrieve(query, top_k=int(os.getenv("RAG_TOP_K", "5")))
+                    report["retrieval_status"] = "complete"
+                    report["retrieved_documents"] = retrieved
+                    report["relevance_scores"] = [{"chunk_id": item["id"], "score": item["score"]} for item in retrieved]
+                    report["context"] = "\n\n".join(
+                        f"[{item['id']}] {item['metadata'].get('source')} | section={item['metadata'].get('section')} | page={item['metadata'].get('page', 'n/a')}\n{item['text']}"
+                        for item in retrieved)
+                    report["source_citations"] = [{"chunk_id": item["id"], "source": item["metadata"].get("source", "unknown"),
+                        "document_id": item["metadata"].get("document_id"), "section": item["metadata"].get("section"),
+                        "page": item["metadata"].get("page"), "relevance_score": item["score"]} for item in retrieved]
+                    analysis = PolicyAnalyst().analyze(query, retrieved, financial_analysis)
+                    report.update({"answer": analysis["answer"], "confidence": analysis["confidence"],
+                                   "limitations": extraction_warnings + analysis["limitations"], "status": analysis["status"],
+                                   "claims": analysis["claims"]})
+                    if not retrieved:
+                        report["limitations"] = analysis["limitations"]
         except Exception as exc:
             report["status"] = "error"
             report["limitations"].append(str(exc))

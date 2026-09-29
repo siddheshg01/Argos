@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowDownRight, ArrowRight, Bell, Bot, Check, ChevronDown, ClipboardCheck, Database, FileText, LayoutDashboard, LockKeyhole, Mail, Moon, Send, ShieldAlert, Sun, TrendingUp, X } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { createUserWithEmailAndPassword, GithubAuthProvider, GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth'
+import { appForFirebase } from './firebase.js'
 
 const navigation = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -8,8 +10,10 @@ const navigation = [
   { id: 'actions', label: 'Actions & Approvals', icon: ClipboardCheck },
 ]
 const api = async (path, options = {}) => {
-  const accessToken = window.sessionStorage.getItem('argos-access-token')
-  const response = await fetch(`/api${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(options.headers || {}) } })
+  const auth = await appForFirebase().then(app => getAuth(app))
+  const accessToken = auth.currentUser ? await auth.currentUser.getIdToken() : null
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
+  const response = await fetch(`/api${path}`, { ...options, headers: { ...(!isForm ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(options.headers || {}) } })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`)
   return body
@@ -58,15 +62,38 @@ export default function App() {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [busy, setBusy] = useState(false)
-  const [employee, setEmployee] = useState(() => window.sessionStorage.getItem('argos-employee') || '')
-  const [signedIn, setSignedIn] = useState(() => window.sessionStorage.getItem('argos-signed-in') === 'true')
+  const [employee, setEmployee] = useState('')
+  const [signedIn, setSignedIn] = useState(false)
+  const [authReady, setAuthReady] = useState(false)
+  const [authConfigError, setAuthConfigError] = useState('')
+  const [authMode, setAuthMode] = useState('signin')
   const [loginError, setLoginError] = useState('')
   const [signingIn, setSigningIn] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
     localStorage.setItem('argos-theme', dark ? 'dark' : 'light')
   }, [dark])
+
+  useEffect(() => {
+    let unsubscribe = () => {}
+    let active = true
+    appForFirebase().then(app => {
+      if (!active) return
+      unsubscribe = onAuthStateChanged(getAuth(app), user => {
+        setEmployee(user?.email || user?.displayName || 'User')
+        setSignedIn(Boolean(user))
+        setAuthReady(true)
+      })
+    }).catch(error => {
+      if (active) {
+        setAuthConfigError(error.message)
+        setAuthReady(true)
+      }
+    })
+    return () => { active = false; unsubscribe() }
+  }, [])
 
   const refreshOverview = async () => {
     const [dashboard, workflow, history] = await Promise.all([api('/dashboard'), api('/actions'), api('/audit')])
@@ -96,30 +123,34 @@ export default function App() {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const email = String(form.get('employeeEmail') || '').trim()
-    const token = String(form.get('accessToken') || '').trim()
-    if (!email) { setLoginError('Enter your work email to continue.'); return }
+    const password = String(form.get('password') || '')
+    if (!email || !password) { setLoginError('Enter your email and password.'); return }
     setSigningIn(true)
     setLoginError('')
-    if (token) window.sessionStorage.setItem('argos-access-token', token)
-    else window.sessionStorage.removeItem('argos-access-token')
     try {
-      await api('/dashboard')
-      window.sessionStorage.setItem('argos-employee', email)
-      window.sessionStorage.setItem('argos-signed-in', 'true')
-      setEmployee(email)
-      setSignedIn(true)
+      const app = await appForFirebase()
+      const auth = getAuth(app)
+      if (authMode === 'register') await createUserWithEmailAndPassword(auth, email, password)
+      else await signInWithEmailAndPassword(auth, email, password)
     } catch (e) {
-      window.sessionStorage.removeItem('argos-access-token')
-      setLoginError(e.message.includes('Authentication required') ? 'Access was not accepted. Check the access token with your Argos administrator.' : `Could not connect to Argos. ${e.message}`)
+      setLoginError(firebaseErrorMessage(e))
     } finally { setSigningIn(false) }
   }
 
-  function signOut() {
-    window.sessionStorage.removeItem('argos-access-token')
-    window.sessionStorage.removeItem('argos-employee')
-    window.sessionStorage.removeItem('argos-signed-in')
-    setEmployee('')
-    setSignedIn(false)
+  async function socialSignIn(providerName) {
+    setSigningIn(true)
+    setLoginError('')
+    try {
+      const app = await appForFirebase()
+      const provider = providerName === 'Google' ? new GoogleAuthProvider() : new GithubAuthProvider()
+      await signInWithPopup(getAuth(app), provider)
+    } catch (e) { setLoginError(firebaseErrorMessage(e)) }
+    finally { setSigningIn(false) }
+  }
+
+  async function signOut() {
+    try { const app = await appForFirebase(); await firebaseSignOut(getAuth(app)) }
+    catch (e) { setError(firebaseErrorMessage(e)) }
   }
 
   const notify = text => { setToast(text); window.setTimeout(() => setToast(''), 3200) }
@@ -154,6 +185,19 @@ export default function App() {
       notify(`${result.created_action_ids?.length || 0} action proposal(s) created.`)
     } catch (e) { setError(e.message) }
   }
+  async function importDataset(file) {
+    if (!file || importing) return
+    setImporting(true)
+    setError('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const result = await api('/datasets/import', { method: 'POST', body: form })
+      await refreshOverview()
+      notify(`Loaded ${number(result.records_analyzed)} records. Dashboard reports are ready.`)
+    } catch (e) { setError(e.message) }
+    finally { setImporting(false) }
+  }
   async function refreshCurrent() {
     setLoading(true)
     setError('')
@@ -166,12 +210,13 @@ export default function App() {
   }
   const selected = navigation.find(item => item.id === page) || navigation[0]
 
-  if (!signedIn) return <LoginPage dark={dark} setDark={setDark} onSubmit={signIn} error={loginError} busy={signingIn} />
+  if (!authReady) return <div className={`argos-shell ${dark ? 'argos-dark' : 'argos-light'}`}><div className="state"><span className="spinner" />Connecting to secure sign-in…</div></div>
+  if (!signedIn) return <LoginPage dark={dark} setDark={setDark} onSubmit={signIn} onSocial={socialSignIn} error={loginError || authConfigError} busy={signingIn} mode={authMode} setMode={setAuthMode} />
 
   return <div className={`argos-shell ${dark ? 'argos-dark' : 'argos-light'}`}>
     <header className="argos-site-header"><div className="argos-header-inner">
       <a className="argos-brand-lockup" href="#overview" onClick={event => { event.preventDefault(); setPage('overview') }}><span className="argos-brand-mark"><i /></span><span><b>Argos</b><small>Agentic financial operations</small></span></a>
-      <button className="argos-workspace" aria-label="Selected workspace and dataset"><span className="workspace-avatar">A</span><span><b>Finance workspace</b><small>Amazon Sales & Trading Insights</small></span><ChevronDown size={14} /></button>
+      <button className="argos-workspace" aria-label="Selected workspace and dataset"><span className="workspace-avatar">A</span><span><b>Finance workspace</b><small>{overview?.dataset_metadata?.dataset || 'Upload a dataset to begin'}</small></span><ChevronDown size={14} /></button>
       <nav className="argos-nav" aria-label="Main navigation">{navigation.map(({ id, label: title, icon: Icon }) => <button key={id} className={`argos-nav-link ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}><Icon size={15} /><span>{title}</span>{id === 'actions' && actions.filter(action => action.status === 'PENDING').length > 0 && <span className="argos-nav-count">{actions.filter(action => action.status === 'PENDING').length}</span>}</button>)}</nav>
       <div className="argos-header-actions"><span className={`argos-connection ${connected ? '' : 'offline'}`}><i />{connected ? 'Reports connected' : 'Reports unavailable'}</span><button className="argos-header-icon" aria-label="Open pending actions" onClick={() => setPage('actions')}><Bell size={17} />{actions.some(action => action.status === 'PENDING') && <i />}</button><button className="argos-refresh" onClick={refreshCurrent} disabled={loading}><Activity size={15} /><span>{loading ? 'Refreshing' : 'Refresh'}</span></button><button className="argos-theme-toggle" onClick={() => setDark(value => !value)} aria-label={`Switch to ${dark ? 'light' : 'dark'} mode`}><span className="argos-theme-switch">{dark ? <Sun size={12} /> : <Moon size={12} />}</span><span>{dark ? 'Light mode' : 'Dark mode'}</span></button><button className="argos-profile argos-profile-button" onClick={signOut} title={`Sign out ${employee}`}>{employee.split('@')[0].slice(0, 2).toUpperCase() || 'AN'}</button></div>
     </div></header>
@@ -180,7 +225,7 @@ export default function App() {
         {page !== 'overview' && <div className="argos-page-heading"><div><div className="eyebrow">ARGOS WORKSPACE</div><h1>{selected.label}</h1><p>{page === 'analyst' ? 'Ask a question and get a grounded answer from your financial reports and policies.' : 'Review recommendations, approvals, and recorded workflow activity.'}</p></div></div>}
         {error && <div className="global-error"><ShieldAlert size={16} />{error}<button onClick={() => setError('')} aria-label="Dismiss"><X size={15} /></button></div>}
         {loading && !overview && page === 'overview' ? <div className="state"><span className="spinner" />Loading your financial workspace…</div> : null}
-        {page === 'overview' && overview && <Overview data={overview} actions={actions} audit={audit} onNavigate={setPage} onApprove={(id) => decision(id, 'approve', { actor: 'Dashboard operator', reason: 'Reviewed and approved in Argos.' })} />}
+        {page === 'overview' && overview && <Overview data={overview} actions={actions} audit={audit} onNavigate={setPage} onImport={importDataset} importing={importing} onApprove={(id) => decision(id, 'approve', { actor: 'Dashboard operator', reason: 'Reviewed and approved in Argos.' })} />}
         {page === 'analyst' && <Analyst messages={messages} question={question} setQuestion={setQuestion} busy={busy} onAsk={ask} />}
         {page === 'actions' && <ActionsWorkspace actions={actions} audit={audit} onDecision={decision} onPropose={proposeActions} />}
         <footer className="footer argos-footer"><span>Argos · Financial Operations</span><span>Connected to your finance reports</span></footer>
@@ -190,16 +235,44 @@ export default function App() {
   </div>
 }
 
-function LoginPage({ dark, setDark, onSubmit, error, busy }) {
+function firebaseErrorMessage(error) {
+  const code = error?.code || ''
+  const messages = {
+    'auth/email-already-in-use': 'An account already exists for this email. Sign in instead.',
+    'auth/invalid-credential': 'Email or password is incorrect.',
+    'auth/weak-password': 'Choose a password with at least 6 characters.',
+    'auth/popup-closed-by-user': 'The sign-in window was closed before completion.',
+    'auth/unauthorized-domain': 'This site domain is not authorized in Firebase Authentication settings.',
+    'auth/operation-not-allowed': 'This sign-in method is not enabled in Firebase Authentication settings.',
+  }
+  return messages[code] || error?.message || 'Sign-in failed. Please try again.'
+}
+
+function GoogleLogo() {
+  return <svg className="argos-provider-logo" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.56c2.08-1.92 3.28-4.75 3.28-8.1z" />
+    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.56-2.77c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.16v2.84C3.97 20.53 7.7 23 12 23z" />
+    <path fill="#FBBC05" d="M5.84 14.11a6.95 6.95 0 0 1 0-4.22V7.05H2.16a11 11 0 0 0 0 9.9l3.68-2.84z" />
+    <path fill="#EA4335" d="M12 4.36c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45.99 14.97 0 12 0 7.7 0 3.97 2.47 2.16 6.05l3.68 2.84C6.71 6.29 9.14 4.36 12 4.36z" />
+  </svg>
+}
+
+function GitHubLogo() {
+  return <svg className="argos-provider-logo argos-github-logo" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.08c-3.1.67-3.75-1.32-3.75-1.32-.5-1.28-1.24-1.62-1.24-1.62-1.01-.69.08-.68.08-.68 1.12.08 1.71 1.15 1.71 1.15 1 1.7 2.6 1.21 3.23.92.1-.72.39-1.21.71-1.49-2.48-.28-5.08-1.24-5.08-5.52 0-1.22.43-2.21 1.15-2.99-.12-.28-.5-1.42.11-2.95 0 0 .94-.3 3.06 1.14a10.6 10.6 0 0 1 5.56 0c2.12-1.44 3.06-1.14 3.06-1.14.61 1.53.23 2.67.11 2.95.72.78 1.15 1.77 1.15 2.99 0 4.29-2.6 5.24-5.09 5.51.4.35.76 1.03.76 2.08v3.05c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9z" />
+  </svg>
+}
+
+function LoginPage({ dark, setDark, onSubmit, onSocial, error, busy, mode, setMode }) {
   return <div className={`argos-shell ${dark ? 'argos-dark' : 'argos-light'}`}>
     <div className="argos-login-top"><a className="argos-brand-lockup" href="#login"><span className="argos-brand-mark"><i /></span><span><b>Argos</b><small>Agentic financial operations</small></span></a><button className="argos-theme-toggle" onClick={() => setDark(value => !value)} aria-label={`Switch to ${dark ? 'light' : 'dark'} mode`}><span className="argos-theme-switch">{dark ? <Sun size={13} /> : <Moon size={13} />}</span><span>{dark ? 'Light mode' : 'Dark mode'}</span></button></div>
     <main className="argos-login-main"><section className="argos-login-story"><span className="argos-hero-kicker"><i /> FINANCIAL OPERATIONS WORKSPACE</span><h1>See the full story<br />behind your numbers.</h1><p>Bring reports, investigations, forecasts, and recommended actions together in one clear workspace.</p><div className="argos-login-points"><div><span>01</span><p><b>Understand performance</b><small>Track revenue, orders, and financial risk.</small></p></div><div><span>02</span><p><b>Ask Argos</b><small>Investigate results and find supporting evidence.</small></p></div><div><span>03</span><p><b>Review next steps</b><small>Manage proposals with human approval.</small></p></div></div></section>
-      <form className="argos-login-card" onSubmit={onSubmit}><span className="argos-login-icon"><LockKeyhole size={19} /></span><h2>Employee sign in</h2><p>Sign in to open your finance workspace.</p><label htmlFor="employeeEmail">Work email</label><div className="argos-login-input"><Mail size={16} /><input id="employeeEmail" name="employeeEmail" type="email" autoComplete="username" placeholder="name@company.com" required /></div><label htmlFor="accessToken">Workspace access token <span>if required</span></label><div className="argos-login-input"><LockKeyhole size={16} /><input id="accessToken" name="accessToken" type="password" autoComplete="current-password" placeholder="Enter your access token" /></div>{error && <div className="argos-login-error" role="alert"><ShieldAlert size={15} />{error}</div>}<button className="argos-login-submit" type="submit" disabled={busy}>{busy ? 'Connecting…' : 'Continue to Argos'}<ArrowRight size={16} /></button><div className="argos-login-note"><ShieldAlert size={14} /><span>Use the workspace token provided by your administrator when access control is enabled. In local development, email is only used as a display name.</span></div></form>
+      <form className="argos-login-card" onSubmit={onSubmit}><span className="argos-login-icon"><LockKeyhole size={20} /></span><h2>{mode === 'register' ? 'Create your account' : 'Welcome back'}</h2><p>{mode === 'register' ? 'Register to open your finance workspace.' : 'Sign in to open your finance workspace.'}</p><label htmlFor="employeeEmail">Email address</label><div className="argos-login-input"><Mail size={17} /><input id="employeeEmail" name="employeeEmail" type="email" autoComplete="email" placeholder="name@example.com" required /></div><label htmlFor="password">Password</label><div className="argos-login-input"><LockKeyhole size={17} /><input id="password" name="password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} minLength={6} placeholder="At least 6 characters" required /></div>{error && <div className="argos-login-error" role="alert"><ShieldAlert size={16} />{error}</div>}<button className="argos-login-submit" type="submit" disabled={busy}>{busy ? 'Connecting…' : mode === 'register' ? 'Create account' : 'Sign in'}<ArrowRight size={18} /></button><button className="argos-auth-mode" type="button" onClick={() => setMode(mode === 'register' ? 'signin' : 'register')}>{mode === 'register' ? 'Already have an account? Sign in' : 'New to Argos? Create an account'}</button><div className="argos-auth-divider"><span>or continue with</span></div><div className="argos-social-buttons"><button type="button" disabled={busy} onClick={() => onSocial('Google')}><GoogleLogo /><span>Google</span></button><button type="button" disabled={busy} onClick={() => onSocial('GitHub')}><GitHubLogo /><span>GitHub</span></button></div><div className="argos-login-note"><ShieldAlert size={16} /><span>Secure sign-in powered by Firebase.</span></div></form>
     </main><footer className="argos-login-footer"><span>Argos · Financial Operations</span><span>Secure workspace access</span></footer>
   </div>
 }
 
-function Overview({ data, actions, audit, onNavigate, onApprove }) {
+function Overview({ data, actions, audit, onNavigate, onApprove, onImport, importing }) {
   const summary = data.financial_summary || {}, kpis = data.kpis || {}, risk = data.risk || {}
   const revenue = summary.total_revenue ?? summary.revenue ?? kpis.total_revenue
   const orders = summary.total_orders ?? kpis.total_orders
@@ -222,6 +295,7 @@ function Overview({ data, actions, audit, onNavigate, onApprove }) {
     { label: 'SUGGESTED NEXT STEP', text: attention[0]?.text || 'Ask Argos for a cited recommendation based on the available reports.' },
   ]
   return <>
+    {(!data.data_status?.dataset_loaded || data.dataset_metadata?.dataset === 'Sample Superstore') && <Card className="argos-data-import"><div><span className="argos-hero-kicker"><i />{data.dataset_metadata?.dataset === 'Sample Superstore' ? 'PUBLIC DEMO DATA' : 'DATASET REQUIRED'}</span><h2>{data.dataset_metadata?.dataset === 'Sample Superstore' ? 'Sample financial data is loaded' : 'Connect your financial data'}</h2><p>{data.dataset_metadata?.dataset === 'Sample Superstore' ? <>This dashboard uses Kaggle's public Sample Superstore data. <a href="https://www.kaggle.com/datasets/bibirehana/sample-superstore" target="_blank" rel="noreferrer">View source and CC0 license</a>, or upload your own sales CSV.</> : data.data_status?.message || 'Upload a sales CSV to generate the financial dashboard.'}</p><small>Your CSV is stored in this workspace and analyzed by the existing financial pipeline (maximum 50 MB).</small></div><label className={`argos-import-button ${importing ? 'is-loading' : ''}`}>{importing ? 'Analyzing CSV…' : data.dataset_metadata?.dataset === 'Sample Superstore' ? 'Replace with your CSV' : 'Choose sales CSV'}<input type="file" accept=".csv,text/csv" disabled={importing} onChange={event => { const file = event.target.files?.[0]; if (file) onImport(file); event.target.value = '' }} /></label></Card>}
     <section className="argos-hero"><div className="argos-hero-copy"><span className="argos-hero-kicker"><i /> AGENTIC FINANCIAL OPERATIONS</span><h1>Your ledger,<br />investigated — not just reported.</h1><p>Argos connects financial performance, investigation, forecasts, and next steps in one clear workspace.</p><div className="argos-hero-actions"><button className="argos-hero-primary" onClick={() => onNavigate('analyst')}>Ask Argos <ArrowRight size={16} /></button><button className="argos-hero-secondary" onClick={() => onNavigate('actions')}>Review approvals <span>{pending.length}</span></button></div></div><Card className="argos-trail-card"><div className="argos-trail-heading"><span className="argos-trail-mark"><Activity size={16} /></span><div><b>Latest financial trail</b><small>Report evidence · investigation · outlook · action</small></div></div><div className="argos-trail-steps">{trail.map((step, index) => <div className="argos-trail-step" key={step.label}><span className="argos-trail-number">{index + 1}</span><div><b>{step.label}</b><p>{step.text}</p>{index === 1 && latestChange && <small>Associated with the change; not proof of cause.</small>}</div></div>)}</div></Card></section>
     <div className="metric-grid argos-kpis"><Metric title="Revenue" value={money(revenue)} detail="Total recorded revenue" icon={Activity} tone="purple" /><Metric title="Orders" value={number(orders)} detail="Unique orders" icon={ClipboardCheck} tone="blue" /><Metric title="Quantity" value={number(quantity)} detail="Units recorded" icon={Database} tone="green" /><Metric title="Risk" value={risk.risk_level ? label(risk.risk_level) : number(risk.risk_score)} detail={risk.risk_score != null ? `${number(risk.risk_score)} / 100 · Current risk score` : 'Risk level from reports'} icon={ShieldAlert} tone="amber" /></div>
     <div className="argos-overview-grid">

@@ -40,7 +40,52 @@ body{background:var(--argos-bg);color:var(--argos-ink)}.argos-shell{min-height:1
 @media(max-width:620px){.argos-header-inner{padding:11px 13px}.argos-brand-lockup{gap:8px;min-width:auto}.argos-brand-mark{width:30px;height:32px}.argos-brand-mark:before{width:19px;height:19px}.argos-brand-lockup b{font-size:17px}.argos-brand-lockup small{font-size:7px}.argos-header-actions{gap:7px}.argos-connection{font-size:0;gap:0}.argos-connection i{width:8px;height:8px}.argos-refresh{width:30px;justify-content:center;padding:0}.argos-refresh span{display:none}.argos-theme-toggle{gap:4px;font-size:7px}.argos-theme-switch{width:25px;height:18px}.argos-profile{width:27px;height:27px}.argos-nav-link{font-size:9px;padding:0 10px}.argos-content{padding:21px 13px}.argos-hero{margin:2px 0 22px;gap:20px}.argos-hero-copy h1{font-size:36px;letter-spacing:-1.2px;margin:15px 0 11px}.argos-hero-copy>p{font-size:11px}.argos-hero-actions{margin-top:18px;gap:8px}.argos-hero-primary,.argos-hero-secondary{min-height:39px;font-size:8px;padding:0 11px}.argos-shell .argos-trail-card{padding:17px 16px;border-radius:14px}.argos-trail-step{padding:13px 0;gap:9px}.argos-trail-step p{font-size:9px}.argos-kpis{grid-template-columns:1fr 1fr}.argos-shell .argos-metric{padding:12px;min-height:106px}.argos-metric>strong{font-size:18px}.argos-overview-grid,.argos-lower-grid{grid-template-columns:1fr}.argos-page-heading h1{font-size:20px}.argos-analyst-layout{width:100%}.argos-chat-heading{align-items:flex-start}.argos-chat-heading p{max-width:240px}.argos-shell .argos-table{min-width:650px}}
 @media(max-width:390px){.argos-header-actions{gap:5px}.argos-theme-toggle>span:last-child{display:none}.argos-nav-link{padding:0 8px;gap:5px}.argos-hero-copy h1{font-size:32px}.argos-hero-actions{align-items:stretch;flex-direction:column;max-width:220px}}
 .argos-login-top{width:min(100%,1360px);height:82px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--argos-border)}
+.argos-auth-mode{width:100%;margin-top:13px;border:0;background:transparent;color:var(--argos-accent);font-size:9px;font-weight:650}.argos-auth-divider{display:flex;align-items:center;gap:10px;margin:17px 0;color:var(--argos-muted);font-size:8px}.argos-auth-divider:before,.argos-auth-divider:after{content:"";height:1px;flex:1;background:var(--argos-border)}.argos-social-buttons{display:grid;grid-template-columns:1fr 1fr;gap:9px}.argos-social-buttons button{height:38px;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--argos-border);border-radius:8px;background:var(--argos-panel);color:var(--argos-ink);font-size:9px;font-weight:650}.argos-social-buttons button:disabled{opacity:.55}.argos-google-mark{font-size:13px;color:#4285f4}.argos-github-mark{font-size:17px;color:var(--argos-ink)}
 .argos-login-main{width:min(100%,1160px);min-height:calc(100vh - 145px);margin:0 auto;padding:60px 28px;display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,440px);align-items:center;gap:clamp(45px,9vw,125px)}
 .argos-login-story{max-width:560px}.argos-login-story h1{margin:20px 0 15px;color:var(--argos-ink);font-size:clamp(36px,5vw,57px);line-height:1.08;letter-spacing:-1.9px}.argos-login-story>p{max-width:475px;color:var(--argos-muted);font-size:14px;line-height:1.7}.argos-login-points{display:grid;gap:17px;margin-top:36px}.argos-login-points>div{display:flex;align-items:center;gap:13px}.argos-login-points>div>span{width:31px;height:31px;display:grid;place-items:center;border-radius:50%;background:#d9f2ef;color:#087f76;font-size:9px;font-weight:800}.dark .argos-login-points>div>span{background:#183d45;color:#a3eee2}.argos-login-points p{display:grid;gap:4px;margin:0}.argos-login-points b{color:var(--argos-ink);font-size:11px}.argos-login-points small{color:var(--argos-muted);font-size:9px}
 .argos-login-card{padding:30px;border:1px solid var(--argos-border);border-radius:15px;background:var(--argos-panel);box-shadow:0 16px 45px #12223c0c}.dark .argos-login-card{box-shadow:0 16px 45px #0002}.argos-login-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:var(--argos-soft);color:var(--argos-accent)}.argos-login-card h2{margin:18px 0 5px;color:var(--argos-ink);font-size:21px;letter-spacing:-.45px}.argos-login-card>p{margin:0 0 25px;color:var(--argos-muted);font-size:10px}.argos-login-card>label{display:block;margin:17px 0 7px;color:var(--argos-ink);font-size:9px;font-weight:700}.argos-login-card>label span{color:var(--argos-muted);font-weight:400}.argos-login-input{height:42px;display:flex;align-items:center;gap:9px;padding:0 12px;border:1px solid var(--argos-border);border-radius:8px;background:var(--argos-bg);color:var(--argos-muted)}.argos-login-input:focus-within{border-color:var(--argos-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--argos-accent) 13%,transparent)}.argos-login-input input{width:100%;border:0;outline:0;background:transparent;color:var(--argos-ink);font:inherit;font-size:10px}.argos-login-input input::placeholder{color:var(--argos-muted)}.argos-login-submit{width:100%;height:43px;margin-top:21px;display:flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:8px;background:#102139;color:#fff;font-size:10px;font-weight:700}.argos-login-submit:hover{background:#183452}.argos-login-submit:disabled{opacity:.65}.argos-login-error{display:flex;align-items:flex-start;gap:8px;margin-top:13px;padding:10px;border:1px solid #f3cdd0;border-radius:8px;background:#fff4f4;color:#a83c46;font-size:9px;line-height:1.5}.dark .argos-login-error{border-color:#60313a;background:#351f26;color:#f19aa1}.argos-login-error svg,.argos-login-note svg{flex:0 0 auto}.argos-login-note{display:flex;align-items:flex-start;gap:8px;margin-top:16px;color:var(--argos-muted);font-size:8px;line-height:1.55}.argos-login-note svg{color:var(--argos-accent)}.argos-login-footer{width:min(100%,1160px);margin:0 auto;padding:15px 28px 22px;border-top:1px solid var(--argos-border);display:flex;justify-content:space-between;color:var(--argos-muted);font-size:8px}.argos-profile-button{border:0;cursor:pointer}.argos-profile-button:hover{outline:2px solid var(--argos-accent)}
 @media(max-width:760px){.argos-login-top{height:70px;padding:0 17px}.argos-login-main{min-height:calc(100vh - 125px);grid-template-columns:1fr;gap:30px;padding:35px 18px}.argos-login-story h1{font-size:39px}.argos-login-points{display:none}.argos-login-card{width:min(100%,480px);justify-self:center;padding:24px}.argos-login-footer{padding:14px 18px 20px}}
+/* Larger, clearer sign-in treatment and recognizable provider marks */
+.argos-login-main{width:min(100%,1220px);grid-template-columns:minmax(0,1fr) minmax(390px,480px);gap:clamp(42px,8vw,110px);padding-top:52px;padding-bottom:52px}
+.argos-login-story h1{font-size:clamp(42px,5.1vw,62px);line-height:1.06;letter-spacing:-2.2px}
+.argos-login-story>p{font-size:16px;line-height:1.75}
+.argos-login-points{gap:19px;margin-top:39px}
+.argos-login-points>div>span{width:36px;height:36px;font-size:10px}
+.argos-login-points b{font-size:13px}.argos-login-points small{font-size:11px}
+.argos-login-card{padding:36px;border-radius:18px;box-shadow:0 22px 65px #12223c12}
+.dark .argos-login-card{box-shadow:0 22px 65px #0004}
+.argos-login-icon{width:48px;height:48px;border-radius:14px}
+.argos-login-card h2{margin-top:21px;font-size:25px;letter-spacing:-.6px}
+.argos-login-card>p{margin-bottom:25px;font-size:13px;line-height:1.55}
+.argos-login-card>label{margin:19px 0 8px;font-size:12px}
+.argos-login-input{height:49px;gap:11px;padding:0 14px;border-radius:10px}
+.argos-login-input input{font-size:13px}
+.argos-login-submit{height:49px;margin-top:23px;border-radius:10px;font-size:13px}
+.argos-auth-mode{margin-top:15px;font-size:12px}
+.argos-auth-divider{gap:13px;margin:20px 0;font-size:11px}
+.argos-social-buttons{gap:11px}
+.argos-social-buttons button{height:47px;gap:10px;border-radius:10px;font-size:12px;transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}
+.argos-social-buttons button:hover:not(:disabled){transform:translateY(-1px);border-color:#b9c8d6;background:var(--argos-bg);box-shadow:0 5px 14px #10213912}
+.argos-provider-logo{width:19px;height:19px;flex:0 0 auto}
+.argos-github-logo{color:#171717}.dark .argos-github-logo{color:#f4f6f8}
+.argos-login-error{font-size:12px;line-height:1.55}
+.argos-login-note{margin-top:18px;font-size:10.5px;line-height:1.6}
+.argos-login-footer{font-size:10px}
+@media(max-width:760px){.argos-login-main{grid-template-columns:1fr;gap:28px;padding-top:34px;padding-bottom:34px}.argos-login-story h1{font-size:42px}.argos-login-story>p{font-size:14px}.argos-login-card{padding:28px}}
+@media(max-width:420px){.argos-login-card{padding:23px}.argos-login-story h1{font-size:37px}.argos-social-buttons{grid-template-columns:1fr}}
+.argos-login-card>p{font-size:14px}
+.argos-login-card>label{font-size:13px}
+.argos-auth-divider{font-size:12px}
+.argos-social-buttons button{font-size:13px}
+.argos-login-note{font-size:12px}
+.argos-login-footer{font-size:11px}
+.argos-data-import{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:0 0 24px!important;padding:22px 24px!important;border-color:#b8c5fb!important;background:linear-gradient(110deg,#f4f6ff,var(--argos-panel))!important}
+.dark .argos-data-import{background:linear-gradient(110deg,#19243c,var(--argos-panel))!important;border-color:#34446a!important}
+.argos-data-import h2{margin:9px 0 5px;color:var(--argos-ink);font-size:17px}
+.argos-data-import p{margin:0 0 7px;color:var(--argos-muted);font-size:12px;line-height:1.5}
+.argos-data-import small{color:var(--argos-muted);font-size:10px}
+.argos-import-button{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border-radius:8px;background:#5266df;color:white;font-size:11px;font-weight:700;cursor:pointer}
+.argos-import-button:hover{background:#4458cc}
+.argos-import-button.is-loading{opacity:.65;cursor:wait}
+.argos-import-button input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;clip-path:inset(50%)}
+@media(max-width:620px){.argos-data-import{align-items:flex-start;flex-direction:column;gap:15px;padding:18px!important}.argos-import-button{width:100%}}

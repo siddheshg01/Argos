@@ -1,6 +1,6 @@
 # LLM Financial Analysis
 
-**Status:** error
+**Status:** unavailable
 **Provider / model:** gemini / gemini-3.1-flash-lite
 
 ## Executive Summary
@@ -50,8 +50,9 @@ _No evidence-backed items available._
 
 ## Data Limitations
 
-- **Limitation:** Profit and margin are illustrative estimates from synthetic COGS assumptions; actual supplier/accounting costs are unavailable. _(Evidence: phase1_financial_summary)_
+- **Limitation:** Profit and cost are unavailable in the source dataset. _(Evidence: phase1_financial_summary)_
+- **Limitation:** GEMINI_API_KEY is not configured. Add it to .env to enable Gemini analysis. _(Evidence: phase1_data_quality)_
 
 ## Generation status
 
-Gemini network error (ConnectionRefusedError): [WinError 10061] No connection could be made because the target machine actively refused it
+GEMINI_API_KEY is not configured. Add it to .env to enable Gemini analysis.

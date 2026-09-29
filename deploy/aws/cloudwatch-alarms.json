@@ -1,0 +1,32 @@
+{
+  "Alarms": [
+    {
+      "AlarmName": "finop-api-unhealthy-hosts",
+      "AlarmDescription": "Alert when the FINOP load balancer has unhealthy targets.",
+      "Namespace": "AWS/ApplicationELB",
+      "MetricName": "UnHealthyHostCount",
+      "Dimensions": [{ "Name": "LoadBalancer", "Value": "REPLACE_WITH_ALB_DIMENSION" }, { "Name": "TargetGroup", "Value": "REPLACE_WITH_TARGET_GROUP_DIMENSION" }],
+      "Statistic": "Maximum",
+      "Period": 60,
+      "EvaluationPeriods": 2,
+      "Threshold": 1,
+      "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+      "TreatMissingData": "notBreaching",
+      "AlarmActions": ["REPLACE_WITH_SNS_TOPIC_ARN"]
+    },
+    {
+      "AlarmName": "finop-api-high-5xx",
+      "AlarmDescription": "Alert when the FINOP load balancer returns elevated 5xx responses.",
+      "Namespace": "AWS/ApplicationELB",
+      "MetricName": "HTTPCode_Target_5XX_Count",
+      "Dimensions": [{ "Name": "LoadBalancer", "Value": "REPLACE_WITH_ALB_DIMENSION" }, { "Name": "TargetGroup", "Value": "REPLACE_WITH_TARGET_GROUP_DIMENSION" }],
+      "Statistic": "Sum",
+      "Period": 300,
+      "EvaluationPeriods": 2,
+      "Threshold": 10,
+      "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+      "TreatMissingData": "notBreaching",
+      "AlarmActions": ["REPLACE_WITH_SNS_TOPIC_ARN"]
+    }
+  ]
+}
